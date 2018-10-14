@@ -45,5 +45,7 @@ void basicblock_push_ins(bb_t *bb, ins_t *ins);
 void basicblock_print(bb_t *bb);
 
 cfg_t *make_cfg(dict_t *instructions, uintptr_t address);
+void remove_single_jump_bb(cfg_t *cfg, bb_t *bb);
+void cleanup_cfg(cfg_t *cfg);
 
 #endif

@@ -36,11 +36,11 @@ ins_t *from_capstone(cs_insn *insn){
     uintptr_t jump_target = strtoull(ins->op_str, NULL, 16);
     if(ins->mnemonic[0] == 'j') {
         vec_push(ins->nexts, next_new(jump_target));
-        asprintf(&ins->op_str, "bb_0x%x", jump_target);
+//        asprintf(&ins->op_str, "0x%x", jump_target);
     }
     if(!strcmp(ins->mnemonic, "call") && function_address_valid(jump_target)) {
         ins->call_target = jump_target;
-        asprintf(&ins->op_str, "func_0x%x", ins->call_target);
+//        asprintf(&ins->op_str, "func_0x%x", ins->call_target);
     }
     return ins;
 }
@@ -112,7 +112,7 @@ void basicblock_push_ins(bb_t *bb, ins_t *ins){
 
 void basicblock_print(bb_t *bb){
     ins_t *ins;
-    printf("bb_%p:\n", basicblock_address(bb));
+    printf("%p:\n", basicblock_address(bb));
     for(int i = 0; i < vec_length(bb->instructions); i++){
         ins = vec_get(bb->instructions, i);
         printf("  %s %s\n", ins->mnemonic, ins->op_str);
@@ -120,7 +120,7 @@ void basicblock_print(bb_t *bb){
     vec_t *nexts = basicblock_nexts(bb);
     if(vec_length(nexts) > 0 && strcmp(ins->mnemonic, "jmp")){
         next_t *next = vec_get(nexts, 0);
-        printf("  jmp bb_%p\n", next->address);
+        printf("  jmp %p\n", next->address);
     }
 }
 
@@ -151,6 +151,7 @@ cfg_t *make_cfg(dict_t *instructions, uintptr_t address){
         bb_t *bb = basicblock_new(prev, ins);
         while(vec_length(ins->nexts) == 1) {
             next_t *next = vec_get(ins->nexts, 0);
+            if(ins->mnemonic[0] == 'j') break;
             ins = dict_get(instructions, next->address);
             if(vec_length(dict_get(prevs, next->address)) > 1) break;
             basicblock_push_ins(bb, ins); 
@@ -188,4 +189,36 @@ set_t *find_all_functions(uintptr_t address, set_t *seen) {
         set_extend(all_funcs, find_all_functions(e->item, seen));
     }    
     return all_funcs;
+}
+
+void remove_single_jump_bb(cfg_t *cfg, bb_t *bb){
+    uintptr_t next_bb = ((next_t *)vec_get(basicblock_nexts(bb), 0))->address;
+    for(int i = 0; i < vec_length(bb->prevs); i++){
+        set_entry_t *e = vec_get(bb->prevs, i);
+        uintptr_t prev_bb_address = e->item;
+        bb_t *prev_bb = NULL;
+        while(prev_bb == NULL){
+            prev_bb = dict_get(cfg->basicblocks, prev_bb_address);
+            prev_bb_address--;
+        }
+        vec_t *nexts = basicblock_nexts(prev_bb);
+        for(int j = 0; j < vec_length(nexts); j++){
+            next_t *next = vec_get(nexts, j);
+            if(next->address == basicblock_address(bb)){
+                next->address = next_bb;
+            }
+        }
+    }
+}
+
+void cleanup_cfg(cfg_t *cfg){
+    for(int i = 0; i < vec_length(cfg->basicblocks); i++){
+        bb_t *bb = dict_elem(cfg->basicblocks, i)->value;
+        if(vec_length(bb->instructions) == 1){
+            ins_t *ins = vec_get(bb->instructions, 0);
+            if(!strcmp(ins->mnemonic, "jmp")){
+                remove_single_jump_bb(cfg, bb);
+            }
+        } 
+    }
 }
