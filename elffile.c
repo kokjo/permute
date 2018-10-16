@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include "elffile.h"
 
 elffile_t *elffile_open(char *path){
@@ -34,7 +35,13 @@ char *elffile_locate(elffile_t *ef, uintptr_t address){
     return NULL;
 }
 
+void elffile_memcpy(elffile_t *ef, uintptr_t address, char *from, size_t size){
+    char *buffer = elffile_locate(ef, address);
+    memcpy(buffer, from, size);
+}
+
 void elffile_write(elffile_t *ef, char *path){
-    int fd = open(path, O_CREAT | O_TRUNC | O_RDWR, 0777);
+    int fd = open("tmp", O_CREAT | O_TRUNC | O_RDWR, 0777);
     write(fd, ef->buffer, ef->size);
+    rename("tmp", path);
 }

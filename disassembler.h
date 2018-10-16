@@ -17,7 +17,7 @@ typedef struct instruction {
     size_t size;
     char *mnemonic;
     char *op_str;
-    char bytes[16];
+    uint8_t bytes[16];
     vec_t *nexts;
     uintptr_t call_target;
 } ins_t;
@@ -47,5 +47,6 @@ void basicblock_print(bb_t *bb);
 cfg_t *make_cfg(dict_t *instructions, uintptr_t address);
 void remove_single_jump_bb(cfg_t *cfg, bb_t *bb);
 void cleanup_cfg(cfg_t *cfg);
+vec_t *find_all_basicblocks(uintptr_t address);
 
 #endif

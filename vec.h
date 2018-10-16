@@ -10,7 +10,7 @@ typedef struct vec {
 } vec_t;
 
 vec_t *vec_new(size_t size);
-void *vec_push(vec_t *vec, void *elem);
+void vec_push(vec_t *vec, void *elem);
 void *vec_get(vec_t *vec, size_t idx);
 size_t vec_length(vec_t *vec);
 void *vec_pop(vec_t *vec);

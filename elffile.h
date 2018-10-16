@@ -12,5 +12,6 @@ typedef struct elffile {
 elffile_t *elffile_open(char *path);
 char *elffile_locate(elffile_t *ef, uintptr_t address);
 void elffile_write(elffile_t *ef, char *path);
+void elffile_memcpy(elffile_t *ef, uintptr_t address, char *from, size_t size);
 
 #endif

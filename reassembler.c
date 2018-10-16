@@ -15,13 +15,10 @@ asm_st_t *asm_new(uintptr_t origin, dict_t *syms){
 }
 
 uintptr_t asm_lookup_sym(asm_st_t *asm_st, uintptr_t sym){
-    uintptr_t cur_addr = asm_current_address(asm_st);
     next_t *next = dict_get(asm_st->syms, sym);
     if(next){
-//        printf("0x%x: found mapping: 0x%x -> 0x%x\n", cur_addr, sym, next->address);
         return next->address;
     }
-//    printf("0x%x: could not find mapping for 0x%x\n", cur_addr, sym);
     return sym;
 }
 
@@ -40,20 +37,20 @@ void asm_emit_rel_addr(asm_st_t *asm_st, uintptr_t address){
 }
 
 void asm_emit_ins(asm_st_t *asm_st, ins_t *ins){
-    if(ins->mnemonic[0] != 'j' && strcmp(ins->mnemonic, "call")){
+    if(ins->mnemonic[0] != 'j' && strcmp(ins->mnemonic, "call") != 0){
         bytevec_extend(asm_st->code, ins->bytes, ins->size);
         return;
     }
 
     uintptr_t sym_addr = asm_lookup_sym(asm_st, strtoull(ins->op_str, NULL, 16));
 
-    if(!strcmp(ins->mnemonic, "call")){
+    if(ins->bytes[0] == 0xe8){
         bytevec_push(asm_st->code, 0xe8);
         asm_emit_rel_addr(asm_st, sym_addr);
         return;
     }
 
-    if(!strcmp(ins->mnemonic, "jmp")){
+    if(ins->bytes[0] == 0xe9){
         bytevec_push(asm_st->code, 0xe9);
         asm_emit_rel_addr(asm_st, sym_addr);
         return;
@@ -61,13 +58,14 @@ void asm_emit_ins(asm_st_t *asm_st, ins_t *ins){
 
     // conditional short jumps (8bit relative address)
     if((ins->bytes[0] & 0xf0) == 0x70) {
+        // convert to long jump
         bytevec_push(asm_st->code, 0x0f);
         bytevec_push(asm_st->code, 0x80 | (ins->bytes[0] & 0x0f));
         asm_emit_rel_addr(asm_st, sym_addr);
         return;
     }
 
-    // conditional long jumps (32bit relative address
+    // conditional long jumps (32bit relative address)
     if(ins->bytes[0] == 0x0f && ((ins->bytes[1] & 0xf0) == 0x80)) {
         bytevec_extend(asm_st->code, ins->bytes, 2);
         asm_emit_rel_addr(asm_st, sym_addr);
