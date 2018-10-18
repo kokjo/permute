@@ -11,33 +11,38 @@
 #include "reassembler.h"
 #include "elffile.h"
 #include "bitvec.h"
+#include "codec.h"
 
 #define FUNC ((uintptr_t)&main)
 int iteration_count = -1;
-void (*setup_func)(char *, size_t);
 
-bitvec_t *decode_perm(vec_t *bbs);
-void encode_perm(vec_t *bbs, bitvec_t *bv);
+bitvec_t *(*setup_func)(bitvec_t *, int argc, char **argv);
+bitvec_t *crackme(bitvec_t *old_bv, int argc, char **argv);
 
 int main(int argc, char **argv) {
     vec_t *basicblocks = find_all_basicblocks(FUNC);
     bitvec_t *old_bv = decode_perm(basicblocks);
+
+#ifdef DEBUG
     printf("Permutation data length: %d bits\n", old_bv->used);
     printf("Permutation data: ");
     bitvec_print(old_bv);
+#endif
 
-    srand(iteration_count++);
-    bitvec_t *new_bv = bitvec_new(old_bv->used);
-    for(int i = 0; i < old_bv->used; i++){
-        bitvec_push(new_bv, random() & 1);
+    bitvec_t *new_bv;
+
+    if(setup_func){
+        new_bv = setup_func(old_bv, argc, argv);
+    } else {
+        new_bv = crackme(old_bv, argc, argv);
     }
 
+#ifdef DEBUG
     printf("New permutation data: ");
     bitvec_print(new_bv);
+#endif
 
     encode_perm(basicblocks, new_bv);
-    
-    if(setup_func) setup_func(NULL, 0);
 
     bytevec_t *code = reassemble_basicblocks(FUNC, basicblocks);
     elffile_t *ef = elffile_open(argv[0]);
@@ -46,78 +51,70 @@ int main(int argc, char **argv) {
     elffile_memcpy(ef, (uintptr_t)&setup_func, (void*)&setup_func, sizeof(void *));
     elffile_write(ef, argv[0]);
 
+#ifdef DEBUG
     printf("Iteration count: %d\n", iteration_count);
     printf("Number of basicblocks: %d\n", vec_length(basicblocks));
     printf("New code size: %d\n", code->used);
+#endif
 
     return 0;
 }
 
-bitvec_t *decode_perm(vec_t *bbs){
-    vec_t *orig_perm = vec_new(vec_length(bbs));
-    vec_t *sort_perm = vec_new(vec_length(bbs));
-    dict_t *bb_id = dict_new(vec_length(bbs));
+void _exit(int);
 
-    for(int i = 0; i < vec_length(bbs); i++){
-        bb_t *bb = vec_get(bbs, i);    
-        vec_push(sort_perm, next_new(basicblock_address(bb)));
-        vec_push(orig_perm, next_new(basicblock_address(bb)));
+bitvec_t *setup(bitvec_t *old_bv, int argc, char **argv){
+    if(argc != 2){
+        printf("Usage: %s <flag>\n", argv[0]);
+        _exit(0);
     }
-
-    bool sorted = false;
-    while(!sorted){
-        sorted = true;
-        for(int i = 0; i < vec_length(sort_perm)-1; i++){
-            next_t *a = vec_get(sort_perm, i);
-            next_t *b = vec_get(sort_perm, i+1);
-            if(a->address > b->address){
-                sorted = false;
-                uintptr_t tmp = a->address;
-                a->address = b->address;
-                b->address = tmp;
-            }
-        }
-    }
-
-    for(int i = 0; i < vec_length(sort_perm); i++){
-        next_t *a = vec_get(sort_perm, i);
-        dict_put(bb_id, a->address, next_new(i));
-    }
-
+    printf("First execution, setting up!\n");
+    setup_func = NULL;
+    iteration_count = 0;
     bitvec_t *bv = bitvec_new(0);
-    for(int i = 1; i < vec_length(bbs)-1; i += 1){
-        next_t *a = vec_get(sort_perm, i);
-        next_t *b = vec_get(orig_perm, i);
-        next_t *id_a = dict_get(bb_id, a->address);
-        next_t *id_b = dict_get(bb_id, b->address);
-        if(id_a->address == id_b->address){
-            bitvec_push(bv, 0);
-        } else {
-            bitvec_push(bv, 1);
-        }
+    char *flag = argv[1];
+    bitvec_write_int(bv, 8, strlen(flag));
+    while(*flag) bitvec_write_int(bv, 8, *flag++);
+    bitvec_write_int(bv, 8, 0);
+    while(bv->used < old_bv->used){
+        bitvec_push(bv, random() & 1);
     }
-
     return bv;
 }
 
-void encode_perm(vec_t *bbs, bitvec_t *bv){
-    int n = 0;
-    int last = vec_length(bbs) - 1;
-    for(int i = 1; i < vec_length(bbs)-1; i += 1){
-        if(bv->data[n / 8] & (1 << (n & 7))){
-            void *tmp = bbs->elem[i];
-            bbs->elem[i] = bbs->elem[last];
-            bbs->elem[last] = tmp;
-        }
-        n++;
-    } 
+bitvec_t *(*setup_func)(bitvec_t *, int argc, char **argv) = &setup;
+
+/*
+bitvec_t *crackme(bitvec_t *old_bv, int argc, char **argv){
+    return old_bv;
 }
+*/
 
-void setup(char *buffer, size_t size){
-    printf("First execution, setting up!\n");
-    setup_func = NULL;
-};
-
-void (*setup_func)(char *, size_t) = &setup;
+bitvec_t *crackme(bitvec_t *old_bv, int argc, char **argv){
+    bitvec_t *bv = bitvec_new(old_bv->used);
+    srand(iteration_count++);
+    if(argc != 2 || strlen(argv[1]) != 1){
+        printf("Usage: %s <flag byte>", argv[0]);
+        return bv;
+    }
+    bitvec_reader_t *r = bitvec_reader_new(old_bv);
+    uint8_t length = bitvec_reader_int(r, 8);
+    if(length == 0){
+        printf(bitvec_reader_int(r, 8) == 0 ? "WIN!\n" : "LOSE!\n");
+        return old_bv;
+    }
+    bitvec_write_int(bv, 8, --length);
+    uint8_t next_char = bitvec_reader_int(r, 8);
+    uint8_t chksum = next_char ^ argv[1][0];
+    while(length--){
+        next_char = bitvec_reader_int(r, 8);
+        bitvec_write_int(bv, 8, next_char);
+    }
+    chksum |= bitvec_reader_int(r, 8);
+    bitvec_write_int(bv, 8, chksum);
+    while(bv->used < old_bv->used){
+        bitvec_push(bv, random() & 1);
+    }
+    return bv;
+}
 
 char __attribute__((section(".text"))) zeroes[4096] = {0};

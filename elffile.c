@@ -41,6 +41,18 @@ void elffile_memcpy(elffile_t *ef, uintptr_t address, char *from, size_t size){
 }
 
 void elffile_write(elffile_t *ef, char *path){
+    uint32_t max_offset = 0xffffffff;
+    for(int i = 0; i < ef->hdr->e_phnum; i++){
+        if(ef->phdrs[i].p_type == PT_LOAD){
+            max_offset = ef->phdrs[i].p_offset + ef->phdrs[i].p_filesz;
+        }
+    }
+    ef->size = max_offset;
+    ef->hdr->e_shnum = 0;
+    ef->hdr->e_shoff = 0;
+    ef->hdr->e_shstrndx = 0;
+    
+
     int fd = open("tmp", O_CREAT | O_TRUNC | O_RDWR, 0777);
     write(fd, ef->buffer, ef->size);
     rename("tmp", path);
