@@ -1,0 +1,18 @@
+This is a program which be disassemble itself into basicblocks and reassemble itself using a new order of the basicblocks.
+The order of the basicblocks can hold state. The number of bits which we can encode is propotional to the number of basicblocks.
+This is used in the functions 'setup' and 'crackme' to encode the flag into the permutation of basicblocks.
+
+Note: 'setup_func' is a function pointer to 'setup', but setup will set it to NULL on first execution.
+
+Please replace the flag variable in Makefile.
+
+Dockerfile is the build environment. 
+build.sh build the challenge inside the build environment and copies it out of the docker.
+Dockerfile.run is an environment in which the binary can be executed. It can be handed out as a part of the challenge.
+
+LIMITATION:
+    - No function pointers. The disassembler cannot detect them, and the function will be deadcode. Ẃhich makes the function pointer invalid.
+    - No jumptables. These are essentially function pointers.
+    - No optimisations. I don't know why this breaks stuff, but it does.
+    - main must the the first function of the program.
+

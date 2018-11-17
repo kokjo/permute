@@ -13,36 +13,35 @@
 #include "bitvec.h"
 #include "codec.h"
 
-#define FUNC ((uintptr_t)&main)
-int iteration_count = -1;
+void _exit(int);
 
-bitvec_t *(*setup_func)(bitvec_t *, int argc, char **argv);
-bitvec_t *crackme(bitvec_t *old_bv, int argc, char **argv);
+#define FUNC ((uintptr_t)&main)
+int iteration_count = -1; // this cannot be zero, it needs to be in .data.
+
+void setup(decoder_t *dec, encoder_t *enc, int argc, char **argv);
+void crackme(decoder_t *dec, encoder_t *enc, int argc, char **argv);
+void (*setup_func)(decoder_t *, encoder_t *, int argc, char **argv) = &setup;
+
+volatile int debug = 0;
 
 int main(int argc, char **argv) {
     vec_t *basicblocks = find_all_basicblocks(FUNC);
-    bitvec_t *old_bv = decode_perm(basicblocks);
 
-#ifdef DEBUG
-    printf("Permutation data length: %d bits\n", old_bv->used);
-    printf("Permutation data: ");
-    bitvec_print(old_bv);
-#endif
-
-    bitvec_t *new_bv;
-
-    if(setup_func){
-        new_bv = setup_func(old_bv, argc, argv);
-    } else {
-        new_bv = crackme(old_bv, argc, argv);
+    if(debug) {
+        for(int i = 0; i < vec_length(basicblocks); i++){
+            bb_t *bb = vec_get(basicblocks, i);
+            basicblock_print(bb);
+        }
     }
 
-#ifdef DEBUG
-    printf("New permutation data: ");
-    bitvec_print(new_bv);
-#endif
+    encoder_t *enc = encoder_new(basicblocks);
+    decoder_t *dec = decoder_new(basicblocks);
 
-    encode_perm(basicblocks, new_bv);
+    if(setup_func){
+        setup_func(dec, enc, argc, argv);
+    } else {
+        crackme(dec, enc, argc, argv);
+    }
 
     bytevec_t *code = reassemble_basicblocks(FUNC, basicblocks);
     elffile_t *ef = elffile_open(argv[0]);
@@ -60,61 +59,59 @@ int main(int argc, char **argv) {
     return 0;
 }
 
-void _exit(int);
-
-bitvec_t *setup(bitvec_t *old_bv, int argc, char **argv){
+void setup(decoder_t *dec, encoder_t *enc, int argc, char **argv){
     if(argc != 2){
-        printf("Usage: %s <flag>\n", argv[0]);
+        //printf("Usage: %s <flag_to_be_loaded>\n", argv[0]);
+        printf("Wrong!\n");
         _exit(0);
     }
-    printf("First execution, setting up!\n");
+
+    char *flag = argv[1];
+
+    if(decoder_data_size(dec) < (strlen(flag) + 2) * 8){
+        printf("flag too big\n");
+        _exit(0);
+    }
+
+    //printf("First execution, setting up!\n");
+
     setup_func = NULL;
     iteration_count = 0;
-    bitvec_t *bv = bitvec_new(0);
-    char *flag = argv[1];
-    bitvec_write_int(bv, 8, strlen(flag));
-    while(*flag) bitvec_write_int(bv, 8, *flag++);
-    bitvec_write_int(bv, 8, 0);
-    while(bv->used < old_bv->used){
-        bitvec_push(bv, random() & 1);
+
+    encoder_write_int(enc, 8, strlen(flag));
+    while(*flag) encoder_write_int(enc, 8, *flag++);
+    encoder_write_int(enc, 8, 0);
+    while(encoder_data_size(enc) < decoder_data_size(dec)){
+        encoder_write_int(enc, 1, random() & 1);
     }
-    return bv;
 }
 
-bitvec_t *(*setup_func)(bitvec_t *, int argc, char **argv) = &setup;
-
-/*
-bitvec_t *crackme(bitvec_t *old_bv, int argc, char **argv){
-    return old_bv;
-}
-*/
-
-bitvec_t *crackme(bitvec_t *old_bv, int argc, char **argv){
-    bitvec_t *bv = bitvec_new(old_bv->used);
+void crackme(decoder_t *dec, encoder_t *enc, int argc, char **argv){
     srand(iteration_count++);
     if(argc != 2 || strlen(argv[1]) != 1){
-        printf("Usage: %s <flag byte>", argv[0]);
-        return bv;
+        printf("Usage: %s <flag byte>\n", argv[0]);
+        encoder_write_int(enc, 16, 0xff05);
+        return;
     }
-    bitvec_reader_t *r = bitvec_reader_new(old_bv);
-    uint8_t length = bitvec_reader_int(r, 8);
+    uint8_t length = decoder_read_int(dec, 8);
     if(length == 0){
-        printf(bitvec_reader_int(r, 8) == 0 ? "WIN!\n" : "LOSE!\n");
-        return old_bv;
+        printf(decoder_read_int(dec, 8) == 0 ? "WIN!\n" : "LOSE!\n");
+        encoder_write_int(enc, 16, 0);
+        return;
     }
-    bitvec_write_int(bv, 8, --length);
-    uint8_t next_char = bitvec_reader_int(r, 8);
+    uint8_t next_char = decoder_read_int(dec, 8);
     uint8_t chksum = next_char ^ argv[1][0];
+    encoder_write_int(enc, 8, --length);
     while(length--){
-        next_char = bitvec_reader_int(r, 8);
-        bitvec_write_int(bv, 8, next_char);
+        next_char = decoder_read_int(dec, 8);
+        encoder_write_int(enc, 8, next_char);
     }
-    chksum |= bitvec_reader_int(r, 8);
-    bitvec_write_int(bv, 8, chksum);
-    while(bv->used < old_bv->used){
-        bitvec_push(bv, random() & 1);
+    chksum |= decoder_read_int(dec, 8);
+    encoder_write_int(enc, 8, chksum);
+    while(encoder_data_size(enc) < decoder_data_size(dec)){
+        encoder_write_int(enc, 1, random() & 1);
     }
-    return bv;
 }
 
-char __attribute__((section(".text"))) zeroes[4096] = {0};
+/* there will be more and longer jumps in the new binary. Put in some padding */
+char __attribute__((section(".text"))) zeroes[0x2000] = {0};
