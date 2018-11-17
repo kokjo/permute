@@ -9,10 +9,13 @@ Please replace the flag variable in Makefile.
 Dockerfile is the build environment. 
 build.sh build the challenge inside the build environment and copies it out of the docker.
 Dockerfile.run is an environment in which the binary can be executed. It can be handed out as a part of the challenge.
+Makefile is executed inside the docker build environment by build.sh. Building using the Makefile outside of docker is not recommended.
+
+The flag validation can be changed by replacing 'setup' and 'crackme', the current flag validation is quite simple compared to the rest of the challenge.
 
 LIMITATION:
     - No function pointers. The disassembler cannot detect them, and the function will be deadcode. Ẃhich makes the function pointer invalid.
     - No jumptables. These are essentially function pointers.
     - No optimisations. I don't know why this breaks stuff, but it does.
-    - main must the the first function of the program.
-
+    - The code size will be larger first execution. Please make the variable 'zeroes' in main.c big enough.
+    - main must the the first function of the program. Do not change the ordering of the functions or in the SORUCES variable in the Makefile.
