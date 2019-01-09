@@ -10,7 +10,6 @@
 #include "disassembler.h"
 #include "reassembler.h"
 #include "elffile.h"
-#include "bitvec.h"
 #include "codec.h"
 
 void _exit(int);

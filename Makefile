@@ -7,8 +7,8 @@ FLAG="flag{PLEASE REPLACE THIS FLAG}"
 
 program: $(OBJECTS)
 	$(CC) $(CFLAGS) $^ $(LIBS) -o $@
-	strip -s program
-	./program $(FLAG)
+#	strip -s program
+#	./program $(FLAG)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@

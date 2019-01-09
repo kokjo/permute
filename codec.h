@@ -1,7 +1,7 @@
 #ifndef _CODEC_H_
 #define _CODEC_H_
 #include "vec.h"
-#include "bitvec.h"
+#include "dict.h"
 
 typedef struct encoder {
     vec_t *bbs;

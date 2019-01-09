@@ -1,10 +1,15 @@
+Tl;DR
+1. Replace FLAG (note: size limitations)
+2. Duild using ./build.sh
+3. If modifying the 'inner crackme' see LIMITATIONS.
+
 This is a program which be disassemble itself into basicblocks and reassemble itself using a new order of the basicblocks.
 The order of the basicblocks can hold state. The number of bits which we can encode is propotional to the number of basicblocks.
 This is used in the functions 'setup' and 'crackme' to encode the flag into the permutation of basicblocks.
 
 Note: 'setup_func' is a function pointer to 'setup', but setup will set it to NULL on first execution.
 
-Please replace the flag variable in Makefile.
+Please replace the FLAG variable in Makefile.
 
 Dockerfile is the build environment. 
 build.sh build the challenge inside the build environment and copies it out of the docker.
@@ -17,5 +22,5 @@ LIMITATION:
     - No function pointers. The disassembler cannot detect them, and the function will be deadcode. Ẃhich makes the function pointer invalid.
     - No jumptables. These are essentially function pointers.
     - No optimisations. I don't know why this breaks stuff, but it does.
-    - The code size will be larger first execution. Please make the variable 'zeroes' in main.c big enough.
-    - main must the the first function of the program. Do not change the ordering of the functions or in the SORUCES variable in the Makefile.
+    - The code size will be larger after first execution. Please make the variable 'zeroes' in main.c big enough.
+    - main must the the first function of the program. Do not change the ordering of the functions or in the SOURCES variable in the Makefile.
